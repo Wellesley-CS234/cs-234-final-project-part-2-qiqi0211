@@ -11,36 +11,50 @@ import plotly.express as px
 import requests
 import os
 
-
 st.set_page_config(layout="wide", page_title="From Pre-Game to Post-Game: Wikipedia Trends During the Olympics🏅")
 
-# URL to the DuckDB file on your server
 DUCKDB_URL = "https://cs.wellesley.edu/~eni/final.duckdb"
 LOCAL_PATH = "final.duckdb"
 
-# Download the DuckDB file if it doesn't exist
-if not os.path.exists(LOCAL_PATH):
-    st.info("Downloading DuckDB database from server...")
-    r = requests.get(DUCKDB_URL, stream=True)
-    with open(LOCAL_PATH, "wb") as f:
-        for chunk in r.iter_content(chunk_size=8192):
-            f.write(chunk)
-    st.success("Download complete!")
+# 1. Create a function specifically for the download
+@st.cache_resource # Use cache_resource for file handling/connections
+def ensure_database():
+    if not os.path.exists(LOCAL_PATH):
+        with st.spinner("Downloading database... this may take a minute."):
+            try:
+                r = requests.get(DUCKDB_URL, stream=True, timeout=10)
+                r.raise_for_status() # Check if the URL is actually working
+                with open(LOCAL_PATH, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            except Exception as e:
+                st.error(f"Failed to download database: {e}")
+                return False
+    return True
 
 @st.cache_data
 def load_all_data():
-    # Connect to the local DuckDB file
-    conn = duckdb.connect(LOCAL_PATH)
+    # Only run this if the file exists
+    if not os.path.exists(LOCAL_PATH):
+        return pd.DataFrame() # Return empty if file missing
+
+    conn = duckdb.connect(LOCAL_PATH, read_only=True)
     df_all = conn.execute("SELECT * FROM wiki_pageviews").df()
     conn.close()
 
-    # Cleanup
     df_all["article"] = df_all["article"].astype(str)
     df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
     return df_all
 
-# Load data (works locally or after deployment)
-df_all = load_all_data()
+# --- MAIN LOGIC ---
+if ensure_database():
+    df_all = load_all_data()
+    if not df_all.empty:
+        st.write("Data loaded!", df_all.head())
+    else:
+        st.warning("Database is empty or could not be read.")
+else:
+    st.error("Cannot proceed without the database.")
 
 # Create tabs to organize all the content
 intro, data_summary, features, classification, hypothesis, visuals, summary = st.tabs(["1. Introduction",
