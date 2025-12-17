@@ -13,7 +13,7 @@ import os
 
 st.set_page_config(layout="wide", page_title="From Pre-Game to Post-Game: Wikipedia Trends During the Olympics🏅")
 
-DUCKDB_URL = "DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
+DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
 LOCAL_PATH = "final.duckdb"
 
 # 1. Create a function specifically for the download
