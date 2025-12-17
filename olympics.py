@@ -10,51 +10,61 @@ import altair as alt
 import plotly.express as px
 import requests
 import os
+import time
 
-st.set_page_config(layout="wide", page_title="From Pre-Game to Post-Game: Wikipedia Trends During the Olympics🏅")
+st.set_page_config(layout="wide", page_title="Wikipedia Trends During the Olympics🏅")
 
 DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
 LOCAL_PATH = "final.duckdb"
 
-# 1. Create a function specifically for the download
-@st.cache_resource # Use cache_resource for file handling/connections
+
+@st.cache_resource
 def ensure_database():
-    if not os.path.exists(LOCAL_PATH):
-        with st.spinner("Downloading database... this may take a minute."):
+    if os.path.exists(LOCAL_PATH):
+        return True
+
+    with st.spinner("Downloading database..."):
+        for attempt in range(1, 4):
             try:
-                r = requests.get(DUCKDB_URL, stream=True, timeout=10)
-                r.raise_for_status() # Check if the URL is actually working
+                r = requests.get(DUCKDB_URL, stream=True, timeout=20)
+                r.raise_for_status()
                 with open(LOCAL_PATH, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
+                # Validate DuckDB
+                conn = duckdb.connect(LOCAL_PATH, read_only=True)
+                conn.execute("SELECT 1").fetchall()
+                conn.close()
+                return True
             except Exception as e:
-                st.error(f"Failed to download database: {e}")
-                return False
-    return True
+                if attempt < 3:
+                    time.sleep(5)
+                else:
+                    st.error(f"Failed to download or validate DuckDB: {e}")
+                    return False
+    return False
 
 @st.cache_data
 def load_all_data():
-    # Only run this if the file exists
     if not os.path.exists(LOCAL_PATH):
-        return pd.DataFrame() # Return empty if file missing
-
+        return pd.DataFrame()
     conn = duckdb.connect(LOCAL_PATH, read_only=True)
-    df_all = conn.execute("SELECT * FROM wiki_pageviews").df()
+    df = conn.execute("SELECT * FROM wiki_pageviews").df()
     conn.close()
+    df["article"] = df["article"].astype(str)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df
 
-    df_all["article"] = df_all["article"].astype(str)
-    df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
-    return df_all
-
-# --- MAIN LOGIC ---
 if ensure_database():
     df_all = load_all_data()
-    if not df_all.empty:
-        st.write("Data loaded!", df_all.head())
-    else:
+    if df_all.empty:
         st.warning("Database is empty or could not be read.")
+    else:
+        st.success("Database loaded!")
+        st.dataframe(df_all.head())
 else:
-    st.error("Cannot proceed without the database.")
+    st.error("Cannot proceed without a valid database.")
+
 
 # Create tabs to organize all the content
 intro, data_summary, features, classification, hypothesis, visuals, summary = st.tabs(["1. Introduction",
