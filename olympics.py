@@ -18,52 +18,57 @@ DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
 LOCAL_PATH = "final.duckdb"
 
 
-@st.cache_resource
-def ensure_database():
-    if os.path.exists(LOCAL_PATH):
-        return True
+import os
+import requests
+import duckdb
+import pandas as pd
+import streamlit as st
 
-    with st.spinner("Downloading database..."):
-        for attempt in range(1, 4):
+st.set_page_config(layout="wide")
+
+DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
+LOCAL_PATH = "final.duckdb"
+
+st.title("From Pre-Game to Post-Game: Wikipedia Trends During the Olympics 🏅")
+
+# ---- STEP 1: Show status ----
+if os.path.exists(LOCAL_PATH):
+    st.success("DuckDB file found locally.")
+else:
+    st.warning("DuckDB file not found.")
+
+
+# ---- STEP 2: Manual download button ----
+if not os.path.exists(LOCAL_PATH):
+    if st.button("Download database (one-time)"):
+        with st.spinner("Downloading database (this may take a few minutes)..."):
             try:
-                r = requests.get(DUCKDB_URL, stream=True, timeout=20)
+                r = requests.get(DUCKDB_URL, stream=True, timeout=30)
                 r.raise_for_status()
                 with open(LOCAL_PATH, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
-                # Validate DuckDB
-                conn = duckdb.connect(LOCAL_PATH, read_only=True)
-                conn.execute("SELECT 1").fetchall()
-                conn.close()
-                return True
+                st.success("Download complete. Please refresh the page.")
+                st.stop()
             except Exception as e:
-                if attempt < 3:
-                    time.sleep(5)
-                else:
-                    st.error(f"Failed to download or validate DuckDB: {e}")
-                    return False
-    return False
+                st.error(f"Download failed: {e}")
+                st.stop()
 
+
+# ---- STEP 3: Load DB only if it exists ----
 @st.cache_data
 def load_all_data():
-    if not os.path.exists(LOCAL_PATH):
-        return pd.DataFrame()
     conn = duckdb.connect(LOCAL_PATH, read_only=True)
     df = conn.execute("SELECT * FROM wiki_pageviews").df()
     conn.close()
-    df["article"] = df["article"].astype(str)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
 
-if ensure_database():
+
+if os.path.exists(LOCAL_PATH):
     df_all = load_all_data()
-    if df_all.empty:
-        st.warning("Database is empty or could not be read.")
-    else:
-        st.success("Database loaded!")
-        st.dataframe(df_all.head())
-else:
-    st.error("Cannot proceed without a valid database.")
+    st.success(f"Loaded {len(df_all):,} rows")
+    st.dataframe(df_all.head())
 
 
 # Create tabs to organize all the content
