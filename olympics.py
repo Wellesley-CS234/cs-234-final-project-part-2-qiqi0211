@@ -50,13 +50,13 @@ if not os.path.exists(LOCAL_PATH):
 # -----------------------------
 @st.cache_data
 def load_all_data():
-    # Open DuckDB in memory and attach disk file
-    conn = duckdb.connect(":memory:", config={"use_mmap": False})
-    conn.execute(f"ATTACH '{LOCAL_PATH}' AS disk")
-    df = conn.execute("SELECT * FROM disk.wiki_pageviews").df()
-    conn.close()  # immediately close disk handle
+    # Open file-backed DB directly (no :memory:)
+    conn = duckdb.connect(LOCAL_PATH, read_only=True, config={"use_mmap": False})
+    df = conn.execute("SELECT * FROM wiki_pageviews").df()
+    conn.close()
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
+
 
 # -----------------------------
 # Load and display
