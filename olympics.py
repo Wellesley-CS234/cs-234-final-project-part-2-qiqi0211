@@ -48,16 +48,34 @@ if not os.path.exists(LOCAL_PATH):
 # -----------------------------
 # Load data (DuckDB, Windows-safe)
 # -----------------------------
-@st.cache_data
+# @st.cache_data
+# def load_all_data():
+#     # Open file-backed DB directly, read-only
+#     conn = duckdb.connect(LOCAL_PATH, read_only=True)  # NO use_mmap
+#     df = conn.execute("SELECT * FROM wiki_pageviews").df()
+#     conn.close()
+#     df["date"] = pd.to_datetime(df["date"], errors="coerce")
+#     return df
+
 @st.cache_data
 def load_all_data():
-    # Open file-backed DB directly, read-only
-    conn = duckdb.connect(LOCAL_PATH, read_only=True)  # NO use_mmap
-    df = conn.execute("SELECT * FROM wiki_pageviews").df()
-    conn.close()
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    return df
-
+    if not os.path.exists(LOCAL_PATH):
+        st.error(f"File not found at {LOCAL_PATH}")
+        return None
+    
+    # Check if the file is too small (LFS pointer issue)
+    file_size = os.path.getsize(LOCAL_PATH)
+    st.info(f"Attempting to load DuckDB file. Size: {file_size} bytes")
+    
+    try:
+        conn = duckdb.connect(LOCAL_PATH, read_only=True)
+        df = conn.execute("SELECT * FROM wiki_pageviews").df()
+        conn.close()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        return df
+    except Exception as e:
+        st.error(f"Connection failed: {e}")
+        return None
 
 # -----------------------------
 # Load and display
