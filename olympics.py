@@ -10,7 +10,6 @@ import altair as alt
 import plotly.express as px
 import requests
 import os
-import time
 
 st.set_page_config(layout="wide", page_title="Wikipedia Trends During the Olympics🏅")
 
