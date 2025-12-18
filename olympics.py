@@ -61,7 +61,7 @@ def load_all_data():
 # -----------------------------
 # Load and display
 # -----------------------------
-if os.path.exists(LOCAL_PATH):
+if os.path.exists(PARQUET_PATH):
     df_all = load_all_data()
     st.success(f"Loaded {len(df_all):,} rows")
 
