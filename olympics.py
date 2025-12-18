@@ -3,7 +3,6 @@
 # Import all libraries
 import streamlit as st
 import pandas as pd
-import duckdb
 from scipy.signal import find_peaks
 import plotly.graph_objects as go
 import altair as alt
@@ -12,10 +11,13 @@ import requests
 import os
 import time
 
-st.set_page_config(layout="wide", page_title="Wikipedia Trends During the Olympics🏅")
+st.set_page_config(
+    layout="wide",
+    page_title="Wikipedia Trends During the Olympics 🏅"
+)
 
-DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
-LOCAL_PATH = "final.duckdb"
+PARQUET_URL = "https://cs.wellesley.edu/~eni/duckdb/wiki_pageviews.parquet"
+LOCAL_PATH = "wiki_pageviews.parquet"
 
 st.title("From Pre-Game to Post-Game: Wikipedia Trends During the Olympics 🏅")
 
@@ -23,18 +25,18 @@ st.title("From Pre-Game to Post-Game: Wikipedia Trends During the Olympics 🏅"
 # Status check
 # -----------------------------
 if os.path.exists(LOCAL_PATH):
-    st.success("DuckDB file found locally.")
+    st.success("Parquet file found locally.")
 else:
-    st.warning("DuckDB file not found yet.")
+    st.warning("Parquet file not found yet.")
 
 # -----------------------------
 # Manual download (SAFE)
 # -----------------------------
 if not os.path.exists(LOCAL_PATH):
-    if st.button("Download database (one-time)"):
-        with st.spinner("Downloading database (this may take a few minutes)..."):
+    if st.button("Download dataset (one-time)"):
+        with st.spinner("Downloading dataset (this may take a few minutes)..."):
             try:
-                r = requests.get(DUCKDB_URL, stream=True, timeout=30)
+                r = requests.get(PARQUET_URL, stream=True, timeout=30)
                 r.raise_for_status()
                 with open(LOCAL_PATH, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
@@ -46,14 +48,11 @@ if not os.path.exists(LOCAL_PATH):
                 st.stop()
 
 # -----------------------------
-# Load data only if DB exists
+# Load data (Parquet = stable)
 # -----------------------------
 @st.cache_data
 def load_all_data():
-    conn = duckdb.connect(":memory:")
-    conn.execute(f"ATTACH '{LOCAL_PATH}' AS disk")
-    df = conn.execute("SELECT * FROM disk.wiki_pageviews").df()
-    conn.close()
+    df = pd.read_parquet(LOCAL_PATH)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
 
@@ -62,6 +61,7 @@ if os.path.exists(LOCAL_PATH):
     df_all = load_all_data()
     st.success(f"Loaded {len(df_all):,} rows")
     st.dataframe(df_all.head())
+
 
 
 # Create tabs to organize all the content
