@@ -17,28 +17,19 @@ st.set_page_config(layout="wide", page_title="Wikipedia Trends During the Olympi
 DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
 LOCAL_PATH = "final.duckdb"
 
-
-import os
-import requests
-import duckdb
-import pandas as pd
-import streamlit as st
-
-st.set_page_config(layout="wide")
-
-DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
-LOCAL_PATH = "final.duckdb"
-
 st.title("From Pre-Game to Post-Game: Wikipedia Trends During the Olympics 🏅")
 
-# ---- STEP 1: Show status ----
+# -----------------------------
+# Status check
+# -----------------------------
 if os.path.exists(LOCAL_PATH):
     st.success("DuckDB file found locally.")
 else:
-    st.warning("DuckDB file not found.")
+    st.warning("DuckDB file not found yet.")
 
-
-# ---- STEP 2: Manual download button ----
+# -----------------------------
+# Manual download (SAFE)
+# -----------------------------
 if not os.path.exists(LOCAL_PATH):
     if st.button("Download database (one-time)"):
         with st.spinner("Downloading database (this may take a few minutes)..."):
@@ -54,8 +45,9 @@ if not os.path.exists(LOCAL_PATH):
                 st.error(f"Download failed: {e}")
                 st.stop()
 
-
-# ---- STEP 3: Load DB only if it exists ----
+# -----------------------------
+# Load data only if DB exists
+# -----------------------------
 @st.cache_data
 def load_all_data():
     conn = duckdb.connect(LOCAL_PATH, read_only=True)
@@ -63,7 +55,6 @@ def load_all_data():
     conn.close()
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
-
 
 if os.path.exists(LOCAL_PATH):
     df_all = load_all_data()
