@@ -49,9 +49,10 @@ if not os.path.exists(LOCAL_PATH):
 # Load data (DuckDB, Windows-safe)
 # -----------------------------
 @st.cache_data
+@st.cache_data
 def load_all_data():
-    # Open file-backed DB directly (no :memory:)
-    conn = duckdb.connect(LOCAL_PATH, read_only=True, config={"use_mmap": False})
+    # Open file-backed DB directly, read-only
+    conn = duckdb.connect(LOCAL_PATH, read_only=True)  # NO use_mmap
     df = conn.execute("SELECT * FROM wiki_pageviews").df()
     conn.close()
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
