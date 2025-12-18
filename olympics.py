@@ -15,28 +15,22 @@ import time
 st.set_page_config(layout="wide", page_title="Wikipedia Trends During the Olympics🏅")
 
 DUCKDB_URL = "https://cs.wellesley.edu/~eni/duckdb/final.duckdb"
-LOCAL_PATH = "final.duckdb"
+DUCKDB_PATH = "final.duckdb"
+
+PARQUET_PATH = "wiki_pageviews.parquet"
 
 st.title("From Pre-Game to Post-Game: Wikipedia Trends During the Olympics 🏅")
 
 # -----------------------------
-# Status check
+# Download DuckDB database if missing
 # -----------------------------
-if os.path.exists(LOCAL_PATH):
-    st.success("DuckDB file found locally.")
-else:
-    st.warning("DuckDB file not found yet.")
-
-# -----------------------------
-# Manual download (one-time)
-# -----------------------------
-if not os.path.exists(LOCAL_PATH):
-    if st.button("Download database (one-time)"):
-        with st.spinner("Downloading database (this may take a few minutes)..."):
+if not os.path.exists(DUCKDB_PATH):
+    if st.button("Download DuckDB database (one-time)"):
+        with st.spinner("Downloading DuckDB database..."):
             try:
-                r = requests.get(DUCKDB_URL, stream=True, timeout=30)
+                r = requests.get(DUCKDB_URL, stream=True, timeout=60)
                 r.raise_for_status()
-                with open(LOCAL_PATH, "wb") as f:
+                with open(DUCKDB_PATH, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
                 st.success("Download complete. Please refresh the page.")
@@ -46,36 +40,23 @@ if not os.path.exists(LOCAL_PATH):
                 st.stop()
 
 # -----------------------------
-# Load data (DuckDB, Windows-safe)
+# Convert DuckDB → Parquet (one-time)
 # -----------------------------
-# @st.cache_data
-# def load_all_data():
-#     # Open file-backed DB directly, read-only
-#     conn = duckdb.connect(LOCAL_PATH, read_only=True)  # NO use_mmap
-#     df = conn.execute("SELECT * FROM wiki_pageviews").df()
-#     conn.close()
-#     df["date"] = pd.to_datetime(df["date"], errors="coerce")
-#     return df
+if os.path.exists(DUCKDB_PATH) and not os.path.exists(PARQUET_PATH):
+    with st.spinner("Converting DuckDB table to Parquet..."):
+        conn = duckdb.connect(DUCKDB_PATH, read_only=True)
+        conn.execute(f"COPY wiki_pageviews TO '{PARQUET_PATH}' (FORMAT PARQUET)")
+        conn.close()
+        st.success("Conversion complete! Parquet file is ready.")
 
+# -----------------------------
+# Load data from Parquet (fast & safe)
+# -----------------------------
 @st.cache_data
 def load_all_data():
-    if not os.path.exists(LOCAL_PATH):
-        st.error(f"File not found at {LOCAL_PATH}")
-        return None
-    
-    # Check if the file is too small (LFS pointer issue)
-    file_size = os.path.getsize(LOCAL_PATH)
-    st.info(f"Attempting to load DuckDB file. Size: {file_size} bytes")
-    
-    try:
-        conn = duckdb.connect(LOCAL_PATH, read_only=True)
-        df = conn.execute("SELECT * FROM wiki_pageviews").df()
-        conn.close()
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        return df
-    except Exception as e:
-        st.error(f"Connection failed: {e}")
-        return None
+    df = pd.read_parquet(PARQUET_PATH)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df
 
 # -----------------------------
 # Load and display
